@@ -6,6 +6,7 @@ const mongoSanitize = require("express-mongo-sanitize");
 
 const authRoutes = require("./routes/auth.routes");
 const taskRoutes = require("./routes/task.routes");
+const projectRoutes = require("./routes/project.routes");
 const errorHandler = require("./middleware/error.middleware");
 
 const app = express();
@@ -31,6 +32,7 @@ app.use(mongoSanitize());
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/projects", projectRoutes);
 app.use("/api/tasks", taskRoutes);
 
 // 404 handler

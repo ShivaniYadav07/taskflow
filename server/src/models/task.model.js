@@ -26,7 +26,16 @@ const taskSchema = new mongoose.Schema(
     dueDate: {
       type: Date,
     },
-    user: {
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      required: true,
+    },
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
@@ -35,7 +44,8 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Compound index: efficient per-user task queries
-taskSchema.index({ user: 1, status: 1 });
+// Indexes for efficient filtering and project board queries
+taskSchema.index({ projectId: 1, status: 1 });
+taskSchema.index({ assignedTo: 1 });
 
 module.exports = mongoose.model("Task", taskSchema);
