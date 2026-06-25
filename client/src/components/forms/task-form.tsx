@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { useProjectContext } from '@/providers/project-provider';
+import type { User } from '@/types';
 
 interface TaskFormProps {
   defaultValues?: Partial<Task>;
@@ -24,6 +26,15 @@ export function TaskForm({
   isLoading,
   submitLabel = 'Save',
 }: TaskFormProps) {
+  const { activeProject } = useProjectContext();
+  const members = activeProject?.members || [];
+  const owner = activeProject?.owner as User | undefined;
+
+  const getUserId = (val: string | User | undefined) => {
+    if (!val) return '';
+    return typeof val === 'string' ? val : val._id || val.id || '';
+  };
+
   const {
     register,
     handleSubmit,
@@ -35,6 +46,7 @@ export function TaskForm({
       description: defaultValues?.description ?? '',
       status: defaultValues?.status ?? 'todo',
       priority: defaultValues?.priority ?? 'medium',
+      assignedTo: getUserId(defaultValues?.assignedTo),
       dueDate: defaultValues?.dueDate
         ? new Date(defaultValues.dueDate).toISOString().split('T')[0]
         : '',
@@ -75,6 +87,27 @@ export function TaskForm({
           <option value="high">High</option>
         </Select>
       </div>
+      <Select
+        {...register('assignedTo')}
+        id="assignedTo"
+        label="Assign To"
+        error={errors.assignedTo?.message}
+      >
+        <option value="">Unassigned</option>
+        {owner && (
+          <option value={owner._id || owner.id}>{owner.name} (Owner)</option>
+        )}
+        {members.map((m) => {
+          const user = m as User;
+          const id = user._id || user.id;
+          if (!id) return null;
+          return (
+            <option key={id} value={id}>
+              {user.name}
+            </option>
+          );
+        })}
+      </Select>
       <Input
         {...register('dueDate')}
         id="dueDate"

@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { LogOut, CheckSquare, Mail, CalendarDays, ChevronDown } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { LogOut, CheckSquare, Mail, CalendarDays, ChevronDown, LayoutList, Kanban } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
+import { ProjectSelector } from './ProjectSelector';
 
 function getInitials(name: string): string {
   return name
@@ -24,6 +25,7 @@ function formatMemberSince(iso?: string): string {
 export function Header() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -57,12 +59,44 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
-        {/* Brand */}
+        {/* Brand & View Toggle & Project Selector */}
         <div className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600">
             <CheckSquare className="h-4 w-4 text-white" />
           </div>
           <span className="text-sm font-semibold text-slate-900">TaskFlow</span>
+
+          {/* Board / List toggle — only show on dashboard routes */}
+          {(pathname?.startsWith('/dashboard')) && (
+            <div className="ml-3 flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+              <button
+                onClick={() => router.push('/dashboard')}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all',
+                  pathname === '/dashboard'
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                <LayoutList className="h-3.5 w-3.5" />
+                List
+              </button>
+              <button
+                onClick={() => router.push('/dashboard/board')}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all',
+                  pathname === '/dashboard/board'
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                <Kanban className="h-3.5 w-3.5" />
+                Board
+              </button>
+            </div>
+          )}
+
+          <ProjectSelector />
         </div>
 
         {/* Profile trigger */}

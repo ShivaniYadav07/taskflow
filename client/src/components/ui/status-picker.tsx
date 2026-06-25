@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Circle, Clock, CheckCircle2, Check } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { TaskStatus } from '@/types';
@@ -10,6 +11,7 @@ interface StatusPickerProps {
   current: TaskStatus;
   onChange: (status: TaskStatus) => void;
   isLoading?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface Option {
@@ -52,33 +54,67 @@ const OPTIONS: Option[] = [
   },
 ];
 
-export function StatusPicker({ current, onChange, isLoading }: StatusPickerProps) {
+export function StatusPicker({ current, onChange, isLoading, onOpenChange }: StatusPickerProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  // Tracks the pixel position of the dropdown relative to the viewport
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const handleOpen = useCallback((next: boolean) => {
+    if (next && triggerRef.current) {
+      // Measure the trigger button's position in the viewport
+      const rect = triggerRef.current.getBoundingClientRect();
+      const dropdownHeight = 180; // approximate height of the dropdown
+      const spaceBelow = window.innerHeight - rect.bottom;
+      
+      let topPos = rect.bottom + 6;
+      // If it doesn't fit below, and there's more space above, open upwards
+      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+        topPos = rect.top - dropdownHeight - 6;
+      }
+      
+      setDropdownPos({
+        top: topPos,
+        left: rect.left,
+      });
+    }
+    setOpen(next);
+    onOpenChange?.(next);
+  }, [onOpenChange]);
 
   useEffect(() => {
     if (!open) return;
     const onMouse = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // Close if click is outside both trigger and dropdown
+      if (!triggerRef.current?.contains(target) && !dropdownRef.current?.contains(target)) {
+        handleOpen(false);
+      }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') handleOpen(false);
     };
+    // Reposition if the page scrolls while open
+    const onScroll = () => handleOpen(false);
     document.addEventListener('mousedown', onMouse);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('mousedown', onMouse);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
     };
-  }, [open]);
+  }, [open, handleOpen]);
 
   const { label, className: badgeClass } = STATUS_CONFIG[current];
 
   return (
-    <div ref={ref} className="relative">
+    <>
       {/* Badge trigger */}
       <button
-        onClick={() => setOpen((v) => !v)}
+        ref={triggerRef}
+        onClick={() => handleOpen(!open)}
         disabled={isLoading}
         title="Change status"
         className={cn(
@@ -108,9 +144,13 @@ export function StatusPicker({ current, onChange, isLoading }: StatusPickerProps
         </svg>
       </button>
 
-      {/* Dropdown panel */}
-      {open && (
-        <div className="absolute left-0 top-full z-30 mt-1.5 w-52 rounded-xl border border-slate-100 bg-white py-1.5 shadow-xl shadow-slate-200/60 animate-scale-in">
+      {/* Dropdown rendered via Portal into document.body — escapes ALL stacking contexts */}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ top: dropdownPos.top, left: dropdownPos.left }}
+          className="fixed z-[9999] w-52 rounded-xl border border-slate-100 bg-white py-1.5 shadow-xl shadow-slate-200/60 animate-scale-in"
+        >
           <p className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             Update status
           </p>
@@ -121,7 +161,7 @@ export function StatusPicker({ current, onChange, isLoading }: StatusPickerProps
                 key={value}
                 onClick={() => {
                   onChange(value);
-                  setOpen(false);
+                  handleOpen(false);
                 }}
                 className={cn(
                   'flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors duration-100',
@@ -141,8 +181,9 @@ export function StatusPicker({ current, onChange, isLoading }: StatusPickerProps
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }

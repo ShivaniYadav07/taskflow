@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, ChevronDown } from 'lucide-react';
+import { Plus, ChevronDown, Briefcase, UserPlus } from 'lucide-react';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useTasks } from '@/hooks/use-tasks';
@@ -13,6 +13,9 @@ import { TaskList } from '@/components/tasks/task-list';
 import { CreateTaskModal, EditTaskModal } from '@/components/tasks/task-modals';
 import { Button } from '@/components/ui/button';
 import { cn, getGreeting } from '@/lib/utils';
+import { useProjectContext } from '@/providers/project-provider';
+import { ProjectForm } from '@/components/forms/ProjectForm';
+import { MemberForm } from '@/components/forms/MemberForm';
 
 type PriorityFilter = '' | 'low' | 'medium' | 'high';
 
@@ -32,21 +35,33 @@ const PRIORITY_OPTIONS: { value: PriorityFilter; label: string }[] = [
 
 export default function DashboardPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { activeProject, isLoading: projectsLoading } = useProjectContext();
   const router = useRouter();
 
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
+  const [isMemberFormOpen, setIsMemberFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace('/login');
   }, [authLoading, isAuthenticated, router]);
 
-  const { data, isLoading: tasksLoading } = useTasks({ limit: 100 }, { enabled: isAuthenticated });
+  // Reset filters when project changes
+  useEffect(() => {
+    setStatusFilter('');
+    setPriorityFilter('');
+  }, [activeProject?._id]);
+
+  const { data, isLoading: tasksLoading } = useTasks(
+    { projectId: activeProject?._id, limit: 100 },
+    { enabled: isAuthenticated && !!activeProject }
+  );
+
   const allTasks = data?.tasks ?? [];
 
-  // Tab counts
   const counts = useMemo(
     () => ({
       '': allTasks.length,
@@ -84,12 +99,37 @@ export default function DashboardPage() {
     day: 'numeric',
   });
 
+  // ─── Empty State: No projects at all ────────────────────────────────────────
+  if (!projectsLoading && !activeProject) {
+    return (
+      <>
+        <Header />
+        <main className="mx-auto flex max-w-lg flex-col items-center justify-center gap-5 px-4 py-24 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50">
+            <Briefcase className="h-8 w-8 text-indigo-500" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-slate-800">No projects yet</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Create your first project to start organising tasks as a team.
+            </p>
+          </div>
+          <Button onClick={() => setIsProjectFormOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Create Project
+          </Button>
+        </main>
+        {isProjectFormOpen && <ProjectForm onClose={() => setIsProjectFormOpen(false)} />}
+      </>
+    );
+  }
+
   return (
     <>
       <Header />
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 animate-fade-in">
-        {/* Greeting + CTA */}
+        {/* Greeting + Actions */}
         <div className="mb-7 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold text-slate-900">
@@ -97,11 +137,43 @@ export default function DashboardPage() {
             </h1>
             <p className="mt-0.5 text-sm text-slate-400">{today}</p>
           </div>
-          <Button onClick={() => setIsCreateOpen(true)} className="shrink-0 shadow-sm shadow-indigo-200">
-            <Plus className="h-4 w-4" />
-            <span>New task</span>
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Invite member button — only shows when a project is active */}
+            {activeProject && (
+              <Button
+                variant="secondary"
+                onClick={() => setIsMemberFormOpen(true)}
+                className="gap-2"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Invite</span>
+              </Button>
+            )}
+            <Button
+              onClick={() => setIsCreateOpen(true)}
+              disabled={!activeProject}
+              className="shadow-sm shadow-indigo-200"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New task</span>
+            </Button>
+          </div>
         </div>
+
+        {/* Active project context badge */}
+        {activeProject && (
+          <div className="mb-6 flex items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2.5">
+            <span className="inline-flex items-center rounded-md bg-indigo-600 px-2 py-0.5 text-xs font-bold text-white tracking-wide">
+              {activeProject.key}
+            </span>
+            <span className="text-sm font-medium text-indigo-800">{activeProject.name}</span>
+            {activeProject.description && (
+              <span className="text-xs text-indigo-400 hidden sm:inline">
+                — {activeProject.description}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Stats */}
         <div className="mb-7">
@@ -195,8 +267,11 @@ export default function DashboardPage() {
         )}
       </main>
 
-      <CreateTaskModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />
+      {isCreateOpen && activeProject && (
+        <CreateTaskModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />
+      )}
       <EditTaskModal task={editingTask} onClose={() => setEditingTask(null)} />
+      {isMemberFormOpen && <MemberForm onClose={() => setIsMemberFormOpen(false)} />}
     </>
   );
 }

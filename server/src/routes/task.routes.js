@@ -9,6 +9,7 @@ const {
   updateTask,
   deleteTask,
 } = require("../controllers/task.controller");
+const { getComments, addComment, deleteComment } = require("../controllers/comment.controller");
 const { protect } = require("../middleware/auth.middleware");
 const { verifyProjectMember } = require("../middleware/projectAuth.middleware");
 const { validate } = require("../middleware/validate.middleware");
@@ -96,6 +97,36 @@ router.delete(
   [param("id").isMongoId().withMessage("Invalid task ID")],
   validate,
   deleteTask // Validates project membership inside the controller
+);
+
+// @route   GET  /api/tasks/:id/comments
+// @route   POST /api/tasks/:id/comments
+// @desc    List or add comments on a task
+router.route("/:id/comments")
+  .get(
+    [param("id").isMongoId().withMessage("Invalid task ID")],
+    validate,
+    getComments
+  )
+  .post(
+    [
+      param("id").isMongoId().withMessage("Invalid task ID"),
+      body("body").trim().notEmpty().withMessage("Comment body is required").isLength({ max: 2000 }),
+    ],
+    validate,
+    addComment
+  );
+
+// @route   DELETE /api/tasks/:taskId/comments/:commentId
+// @desc    Delete own comment
+router.delete(
+  "/:taskId/comments/:commentId",
+  [
+    param("taskId").isMongoId().withMessage("Invalid task ID"),
+    param("commentId").isMongoId().withMessage("Invalid comment ID"),
+  ],
+  validate,
+  deleteComment
 );
 
 module.exports = router;

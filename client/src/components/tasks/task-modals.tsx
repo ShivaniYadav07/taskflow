@@ -5,6 +5,7 @@ import type { TaskFormData } from '@/lib/validations/task';
 import { Modal } from '@/components/ui/modal';
 import { TaskForm } from '@/components/forms/task-form';
 import { useCreateTask, useUpdateTask } from '@/hooks/use-tasks';
+import { useProjectContext } from '@/providers/project-provider';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -13,9 +14,12 @@ interface CreateTaskModalProps {
 
 export function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProps) {
   const { mutateAsync: createTask, isPending } = useCreateTask();
+  const { activeProject } = useProjectContext();
 
   const handleSubmit = async (data: TaskFormData) => {
-    await createTask(data);
+    if (!activeProject) return;
+    // Inject the active projectId before sending to the API
+    await createTask({ ...data, projectId: activeProject._id });
     onClose();
   };
 

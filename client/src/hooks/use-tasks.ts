@@ -4,10 +4,10 @@ import { taskService, type TaskFilters, type TaskPayload } from '@/services/task
 
 export function useTasks(filters?: TaskFilters, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: ['tasks', filters],
+    // Include projectId in the key so switching projects busts the cache
+    queryKey: ['tasks', filters?.projectId, filters],
     queryFn: () => taskService.getAll(filters).then((r) => r.data.data),
-    // Never run while not authenticated — prevents serving a previous user's cache
-    enabled: options?.enabled ?? true,
+    enabled: (options?.enabled ?? true) && !!filters?.projectId,
   });
 }
 
@@ -16,8 +16,8 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: (data: TaskPayload) =>
       taskService.create(data).then((r) => r.data.data.task),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks'] });
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['tasks', variables.projectId] });
       toast.success('Task created');
     },
     onError: () => toast.error('Failed to create task'),

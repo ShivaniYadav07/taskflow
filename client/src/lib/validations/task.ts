@@ -5,6 +5,7 @@ export const taskSchema = z.object({
   description: z.string().max(500, 'Description is too long').optional(),
   status: z.enum(['todo', 'in-progress', 'done']).optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),
+  assignedTo: z.string().optional(),
   dueDate: z.string().optional(),
 });
 
