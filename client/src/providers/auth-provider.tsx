@@ -23,24 +23,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const initialized = useRef(false);
 
   useEffect(() => {
-    // StrictMode fires effects twice in dev — guard against double init
     if (initialized.current) return;
     initialized.current = true;
 
-    const token = localStorage.getItem('token');
-
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
-
-    // Surface cached user immediately so the UI renders without a spinner
     const cached = readStoredUser();
+
     if (cached) {
+      // Show cached user immediately — no spinner. Then silently revalidate via /me.
+      // The httpOnly cookie is sent automatically (same-origin via Next.js proxy).
       setUser(cached);
       setIsLoading(false);
 
-      // Silently revalidate token in the background; update or evict on failure
       authService
         .getMe()
         .then(({ data }) => {
@@ -48,17 +41,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem('user', JSON.stringify(data.data));
         })
         .catch(() => {
+          // Cookie is invalid or expired — clear local state
           qc.clear();
           setUser(null);
-          localStorage.removeItem('token');
           localStorage.removeItem('user');
-          document.cookie = 'auth=; path=/; max-age=0';
         });
 
       return;
     }
 
-    // Token exists but no cached user — block until /me resolves
+    // No cached user — attempt to restore session from the cookie
     authService
       .getMe()
       .then(({ data }) => {
@@ -66,30 +58,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('user', JSON.stringify(data.data));
       })
       .catch(() => {
-        qc.clear();
-        localStorage.removeItem('token');
-        document.cookie = 'auth=; path=/; max-age=0';
+        // No valid session — stay logged out
       })
       .finally(() => setIsLoading(false));
   }, [qc]);
 
+  // Token is managed entirely by the server via httpOnly cookie.
+  // login() only needs the user object returned by the API response body.
   const login = useCallback(
-    (token: string, userData: User) => {
-      // Wipe any previous user's cached queries before switching sessions
+    (userData: User) => {
       qc.clear();
-      localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(userData));
-      document.cookie = `auth=1; path=/; max-age=604800; SameSite=Lax`;
       setUser(userData);
     },
     [qc],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await authService.logout();
+    } catch {
+      // Server may already be unreachable — proceed with local cleanup
+    }
     qc.clear();
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
-    document.cookie = 'auth=; path=/; max-age=0';
     setUser(null);
   }, [qc]);
 

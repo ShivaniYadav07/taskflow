@@ -16,40 +16,46 @@ const { validate } = require("../middleware/validate.middleware");
 
 const router = Router();
 
-// All task routes require a valid JWT
 router.use(protect);
 
 const STATUSES = ["todo", "in-progress", "done"];
 const PRIORITIES = ["low", "medium", "high"];
+const SORT_FIELDS = [
+  "-createdAt", "createdAt",
+  "-dueDate", "dueDate",
+  "-priority", "priority",
+  "-title", "title",
+];
 
 // @route   GET /api/tasks/me
-// @desc    Get tasks assigned to current user across all projects
 router.get(
   "/me",
   [
     query("status").optional().isIn(STATUSES).withMessage(`status must be one of: ${STATUSES.join(", ")}`),
     query("priority").optional().isIn(PRIORITIES).withMessage(`priority must be one of: ${PRIORITIES.join(", ")}`),
+    query("sort").optional().isIn(SORT_FIELDS).withMessage(`sort must be one of: ${SORT_FIELDS.join(", ")}`),
   ],
   validate,
   getMyTasks
 );
 
 // @route   GET /api/tasks
-// @desc    Get all tasks for a specific project
 router.get(
   "/",
   [
-    query("projectId").isMongoId().withMessage("Valid projectId is required in query parameters"),
+    query("projectId").isMongoId().withMessage("Valid projectId is required"),
     query("status").optional().isIn(STATUSES).withMessage(`status must be one of: ${STATUSES.join(", ")}`),
     query("priority").optional().isIn(PRIORITIES).withMessage(`priority must be one of: ${PRIORITIES.join(", ")}`),
+    query("sort").optional().isIn(SORT_FIELDS).withMessage(`sort must be one of: ${SORT_FIELDS.join(", ")}`),
+    query("page").optional().isInt({ min: 1 }).withMessage("page must be a positive integer"),
+    query("limit").optional().isInt({ min: 1, max: 200 }).withMessage("limit must be between 1 and 200"),
   ],
   validate,
-  verifyProjectMember, // Automatically uses req.query.projectId
+  verifyProjectMember,
   getTasksByProject
 );
 
 // @route   GET /api/tasks/:id
-// @desc    Get a single task
 router.get(
   "/:id",
   [param("id").isMongoId().withMessage("Invalid task ID")],
@@ -58,7 +64,6 @@ router.get(
 );
 
 // @route   POST /api/tasks
-// @desc    Create a new task within a project
 router.post(
   "/",
   [
@@ -68,14 +73,14 @@ router.post(
     body("status").optional().isIn(STATUSES).withMessage(`status must be one of: ${STATUSES.join(", ")}`),
     body("priority").optional().isIn(PRIORITIES).withMessage(`priority must be one of: ${PRIORITIES.join(", ")}`),
     body("assignedTo").optional({ checkFalsy: true }).isMongoId().withMessage("assignedTo must be a valid user ID"),
+    body("dueDate").optional({ checkFalsy: true }).isISO8601().withMessage("dueDate must be a valid date"),
   ],
   validate,
-  verifyProjectMember, // Automatically uses req.body.projectId
+  verifyProjectMember,
   createTask
 );
 
 // @route   PATCH /api/tasks/:id
-// @desc    Update a task (status, assignees, etc)
 router.patch(
   "/:id",
   [
@@ -85,23 +90,21 @@ router.patch(
     body("status").optional().isIn(STATUSES),
     body("priority").optional().isIn(PRIORITIES),
     body("assignedTo").optional({ nullable: true, checkFalsy: true }).isMongoId().withMessage("assignedTo must be a valid user ID"),
+    body("dueDate").optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage("dueDate must be a valid date"),
   ],
   validate,
-  updateTask // Validates project membership inside the controller using the task's DB state
+  updateTask
 );
 
 // @route   DELETE /api/tasks/:id
-// @desc    Delete a task
 router.delete(
   "/:id",
   [param("id").isMongoId().withMessage("Invalid task ID")],
   validate,
-  deleteTask // Validates project membership inside the controller
+  deleteTask
 );
 
-// @route   GET  /api/tasks/:id/comments
-// @route   POST /api/tasks/:id/comments
-// @desc    List or add comments on a task
+// @route   GET/POST /api/tasks/:id/comments
 router.route("/:id/comments")
   .get(
     [param("id").isMongoId().withMessage("Invalid task ID")],
@@ -118,7 +121,6 @@ router.route("/:id/comments")
   );
 
 // @route   DELETE /api/tasks/:taskId/comments/:commentId
-// @desc    Delete own comment
 router.delete(
   "/:taskId/comments/:commentId",
   [

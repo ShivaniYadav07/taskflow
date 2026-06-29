@@ -2,13 +2,12 @@ const User = require("../models/user.model");
 const { verifyToken } = require("../utils/jwt");
 
 const protect = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  // Read JWT from httpOnly cookie (set by login/register)
+  const token = req.cookies?.token;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!token) {
     return res.status(401).json({ success: false, message: "Not authenticated. Please log in." });
   }
-
-  const token = authHeader.split(" ")[1];
 
   try {
     const decoded = verifyToken(token);
@@ -20,7 +19,7 @@ const protect = async (req, res, next) => {
 
     req.user = user;
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ success: false, message: "Invalid or expired token." });
   }
 };

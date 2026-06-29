@@ -35,8 +35,8 @@ export function RegisterForm() {
     setFormError('');
     try {
       const res = await authService.register(data);
-      const { token, user } = res.data.data;
-      login(token, user);
+      const { user } = res.data.data;
+      login(user);
       toast.success('Account created! Welcome aboard 🎉');
       router.push('/dashboard');
     } catch (err) {

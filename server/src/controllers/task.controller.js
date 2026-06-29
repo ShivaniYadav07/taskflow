@@ -1,8 +1,7 @@
 const Task = require("../models/task.model");
-const Project = require("../models/project.model");
+const Comment = require("../models/comment.model");
 const { sendSuccess } = require("../utils/response");
 
-// Helper to check if a user is a member/owner of a project
 const isProjectMember = (project, userId) => {
   const isOwner = project.owner.toString() === userId.toString();
   const isMember = project.members.some((id) => id.toString() === userId.toString());
@@ -14,28 +13,28 @@ const isProjectMember = (project, userId) => {
 // @access  Private (Project Member)
 const getTasksByProject = async (req, res, next) => {
   try {
-    const { status, priority, sort = "-createdAt", page = 1, limit = 10 } = req.query;
-    
-    // verifyProjectMember middleware ensures req.project exists
     if (!req.project) {
-        return res.status(400).json({ success: false, message: "Project ID is required" });
+      return res.status(400).json({ success: false, message: "Project ID is required" });
     }
+
+    const { status, priority, sort = "-createdAt", page = 1, limit = 50 } = req.query;
 
     const filter = { projectId: req.project._id };
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
 
     const pageNumber = parseInt(page, 10);
-    const limitNumber = parseInt(limit, 10);
+    const limitNumber = Math.min(parseInt(limit, 10), 200); // hard cap at 200
     const skip = (pageNumber - 1) * limitNumber;
 
-    const tasks = await Task.find(filter)
-      .populate("assignedTo createdBy", "name email")
-      .sort(sort)
-      .skip(skip)
-      .limit(limitNumber);
-
-    const total = await Task.countDocuments(filter);
+    const [tasks, total] = await Promise.all([
+      Task.find(filter)
+        .populate("assignedTo createdBy", "name email")
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNumber),
+      Task.countDocuments(filter),
+    ]);
 
     sendSuccess(res, 200, {
       count: tasks.length,
@@ -85,7 +84,7 @@ const getTask = async (req, res, next) => {
     }
 
     if (!isProjectMember(task.projectId, req.user._id)) {
-      return res.status(403).json({ success: false, message: "Access denied. You are not a member of this project." });
+      return res.status(403).json({ success: false, message: "Access denied." });
     }
 
     sendSuccess(res, 200, { task });
@@ -94,23 +93,19 @@ const getTask = async (req, res, next) => {
   }
 };
 
-// @desc    Create a new task
+// @desc    Create a new task within a project
 // @route   POST /api/tasks
 // @access  Private (Project Member)
 const createTask = async (req, res, next) => {
   try {
-    const { title, description, status, priority, assignedTo } = req.body;
-    
-    // req.project is attached by verifyProjectMember middleware
     if (!req.project) {
-        return res.status(400).json({ success: false, message: "Project ID is required" });
+      return res.status(400).json({ success: false, message: "Project ID is required" });
     }
 
-    // Validate assignedTo
-    if (assignedTo) {
-      if (!isProjectMember(req.project, assignedTo)) {
-        return res.status(400).json({ success: false, message: "Assigned user is not a member of this project." });
-      }
+    const { title, description, status, priority, assignedTo, dueDate } = req.body;
+
+    if (assignedTo && !isProjectMember(req.project, assignedTo)) {
+      return res.status(400).json({ success: false, message: "Assigned user is not a member of this project." });
     }
 
     const task = await Task.create({
@@ -118,6 +113,7 @@ const createTask = async (req, res, next) => {
       description,
       status,
       priority,
+      dueDate,
       projectId: req.project._id,
       assignedTo,
       createdBy: req.user._id,
@@ -134,7 +130,7 @@ const createTask = async (req, res, next) => {
 // @access  Private (Project Member)
 const updateTask = async (req, res, next) => {
   try {
-    const allowed = ["title", "description", "status", "priority", "assignedTo"];
+    const allowed = ["title", "description", "status", "priority", "assignedTo", "dueDate"];
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([k]) => allowed.includes(k))
     );
@@ -145,16 +141,12 @@ const updateTask = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Task not found." });
     }
 
-    // Verify user has access to update task in this project
     if (!isProjectMember(task.projectId, req.user._id)) {
-      return res.status(403).json({ success: false, message: "Access denied. You are not a member of this project." });
+      return res.status(403).json({ success: false, message: "Access denied." });
     }
 
-    // Verify new assignee is a member
-    if (updates.assignedTo) {
-      if (!isProjectMember(task.projectId, updates.assignedTo)) {
-        return res.status(400).json({ success: false, message: "Assigned user is not a member of this project." });
-      }
+    if (updates.assignedTo && !isProjectMember(task.projectId, updates.assignedTo)) {
+      return res.status(400).json({ success: false, message: "Assigned user is not a member of this project." });
     }
 
     Object.assign(task, updates);
@@ -166,7 +158,7 @@ const updateTask = async (req, res, next) => {
   }
 };
 
-// @desc    Delete a task
+// @desc    Delete a task and its comments
 // @route   DELETE /api/tasks/:id
 // @access  Private (Project Member)
 const deleteTask = async (req, res, next) => {
@@ -177,12 +169,14 @@ const deleteTask = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Task not found." });
     }
 
-    // Verify user has access to delete task in this project
     if (!isProjectMember(task.projectId, req.user._id)) {
-      return res.status(403).json({ success: false, message: "Access denied. You are not a member of this project." });
+      return res.status(403).json({ success: false, message: "Access denied." });
     }
 
+    // Cascade: delete all comments belonging to this task before removing the task
+    await Comment.deleteMany({ taskId: task._id });
     await task.deleteOne();
+
     sendSuccess(res, 200, null, "Task deleted");
   } catch (err) {
     next(err);

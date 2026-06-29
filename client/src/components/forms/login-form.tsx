@@ -35,8 +35,8 @@ export function LoginForm() {
     setFormError('');
     try {
       const res = await authService.login(data);
-      const { token, user } = res.data.data;
-      login(token, user);
+      const { user } = res.data.data;
+      login(user);
       toast.success(`Welcome back, ${user.name}!`);
       router.push('/dashboard');
     } catch (err) {

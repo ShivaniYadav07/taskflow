@@ -48,16 +48,11 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
-export interface AuthData {
-  token: string;
-  user: User;
-}
-
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (token: string, user: User) => void;
+  login: (user: User) => void;
   logout: () => void;
 }
 
