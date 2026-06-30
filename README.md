@@ -110,22 +110,22 @@ cd ../client && npm install
 
 ### 2. Configure environment
 
-**Backend** — `server/.env`:
+**Backend** — copy `server/.env.example` to `server/.env` and fill in your values:
 ```env
-PORT=8000
-MONGO_URI=mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/task_manager
-JWT_SECRET=<generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
-JWT_EXPIRES_IN=7d
-NODE_ENV=development
-CLIENT_URL=http://localhost:3000
+PORT=
+MONGO_URI=
+JWT_SECRET=
+JWT_EXPIRES_IN=
+NODE_ENV=
+CLIENT_URL=
 ```
 
-**Frontend** — `client/.env.local`:
+**Frontend** — create `client/.env.local`:
 ```env
-API_URL=http://localhost:8000
+API_URL=
 ```
 
-> `API_URL` has no `NEXT_PUBLIC_` prefix — it is server-side only and never sent to the browser.
+> Refer to `server/.env.example` for descriptions of each variable.
 
 ### 3. Start servers
 
