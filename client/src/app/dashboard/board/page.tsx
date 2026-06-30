@@ -75,7 +75,7 @@ export default function BoardPage() {
     <>
       <Header />
 
-      <main className="flex h-[calc(100vh-3.5rem)] flex-col px-4 py-6 sm:px-6 animate-fade-in overflow-hidden">
+      <main className="mx-auto w-full max-w-5xl flex h-[calc(100vh-3.5rem)] flex-col px-4 py-8 sm:px-6 animate-fade-in overflow-hidden">
         {/* Board header */}
         <div className="mb-5 flex items-center justify-between gap-4">
           <div>
